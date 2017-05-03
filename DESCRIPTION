@@ -1,0 +1,15 @@
+Package: preciparea
+Version: 0.9995
+Date: April 29 2017
+Title: Precipitation area ananlysis.
+Author: Rasmus E. Benestad <rasmus.benestad@physics.org>
+Maintainer: Rasmus E. Benestad <rasmus.benestad@physics.org>
+Depends:
+    ncdf4,
+    zoo,
+    esd,
+    R (>= 2.10.0)
+Description: This package analyses the area (spatial extent) of precipitation making use of the TRMM data to throw light on the hydrological cycle. 
+License: GPL (>= 2)
+URL: 
+ZipData: no
