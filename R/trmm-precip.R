@@ -82,10 +82,9 @@ monthP2area <- function(fname='~/TRMM-monthly/trmm-precip-mon.nc',param='precip'
 ## A function that reads a netCDF in latitude strips and accumulates the amount for computers with small memory
 ## Returns the area sum for three latitude bands: 90S-50S, 50S-50N, and 50N-90N
 # TRMM: 180W-180E; MERRA-2: 180W-180E; ERAINT: 0-360E
-globalsum <- function(fname,param=NULL,FUN='sum',dlon=10,dx=0.01,lons=c(-180,180)) {
+globalsum <- function(fname,param=NULL,FUN='sum',dlon=30,dx=0.01,lons=c(-180,180)) {
   for (y in seq(lons[1],lons[2]-dlon,by=dlon)) {
     if (y + dlon < 0) dj <- -dx else dj <- dx
-    print(c(y,y+dlon-dj))
     if (is.null(param)) x <- retrieve(fname,lon=c(y,y+dlon-dj)) else {
                         x <- retrieve(fname,param[1],lon=c(y,y+dlon-dj))
       if (length(param>1)) 
@@ -102,6 +101,7 @@ globalsum <- function(fname,param=NULL,FUN='sum',dlon=10,dx=0.01,lons=c(-180,180
       X.50s50n <- X.50s50n + aggregate.area(subset(x,is=list(lon=lons,lat=c(-50,50))),FUN=FUN)
       X.50n90n <- X.50n90n + aggregate.area(subset(x,is=list(lon=lons,lat=c(50,90))),FUN=FUN)
     }
+    print(c(y,y+dlon-dj, mean(X.50s50n), mean(X.90s50s),mean(X.50n90n)))
   }
   X <- merge(X.50s50n,X.90s50s,X.50n90n)
   invisible(X)
@@ -545,7 +545,6 @@ raingauges <- function(x0=1,tim=seq(as.Date('1960-01-01'),as.Date('2016-01-01'),
   totP <- rep(0,nt); fw <- totP; Ng <- totP
   lat <- rep(NA,N); lon <- lat; alt <- lat; stnr <- lat; cntr <- lat; nval <- lat 
   start <- lat; end <- lat; loc <- rep('',N)
-  
   data("geoborders")
   plot(geoborders$x,geoborders$y,type="l")
   grid()
