@@ -86,8 +86,8 @@ globalsum <- function(fname,param=NULL,FUN='sum',dlon=30,dx=0.01,lons=c(-180,180
   for (y in seq(lons[1],lons[2]-dlon,by=dlon)) {
     if (y + dlon < 0) dj <- -dx else dj <- dx
     if (is.null(param)) x <- retrieve(fname,lon=c(y,y+dlon-dj)) else {
-                        x <- retrieve(fname,param[1],lon=c(y,y+dlon-dj))
-      if (length(param>1)) 
+                        x <- retrieve(fname,param=param[1],lon=c(y,y+dlon-dj))
+      if (length(param)> 1) 
         for (i in 2:length(param)) 
           coredata(x) <- coredata(x) + coredata(retrieve(fname,param[i],lon=c(y,y+dlon-dj)))
     } 
@@ -101,7 +101,7 @@ globalsum <- function(fname,param=NULL,FUN='sum',dlon=30,dx=0.01,lons=c(-180,180
       X.50s50n <- X.50s50n + aggregate.area(subset(x,is=list(lon=lons,lat=c(-50,50))),FUN=FUN)
       X.50n90n <- X.50n90n + aggregate.area(subset(x,is=list(lon=lons,lat=c(50,90))),FUN=FUN)
     }
-    print(c(y,y+dlon-dj, mean(X.50s50n), mean(X.90s50s),mean(X.50n90n)))
+    print(c(y,y+dlon-dj, round(c(mean(X.50s50n), mean(X.90s50s),mean(X.50n90n))/1.0e12)))
   }
   X <- merge(X.50s50n,X.90s50s,X.50n90n)
   invisible(X)
@@ -109,22 +109,14 @@ globalsum <- function(fname,param=NULL,FUN='sum',dlon=30,dx=0.01,lons=c(-180,180
 
 ## Prepare/extract information from ERAINT
 moistflux <- function(fname='~/Downloads/ERAINT_Qs.nc') {
-  #require(esd)
-  ## Units = "kg m**-2 s**-1"
-  Qs <- globalsum(fname=fname)
-  #Qs <- retrieve(fname,lat=c(-50,50))
-  #Qs.50S50N <- aggregate.area(Qs)
-  #rm('Qs'); gc(reset=TRUE)
-  #Qs <- retrieve(fname,lat=c(-90,-50))
-  #Qs.90S50S <- aggregate.area(Qs)
-  #rm('Qs'); gc(reset=TRUE)
-  #Qs <- retrieve(fname,lat=c(50,90))
-  #Qs.50N90N <- aggregate.area(Qs)
-  #rm('Qs'); gc(reset=TRUE)
-  #Qs <- combine.stations(Qs.50S50N,Qs.90S50S,Qs.50N90N)
-  #plot(Es,map.show=FALSE)
+  for (it in seq(1979,2016,by=10)) {
+    print(it)
+    x <- retrieve('~/Downloads/ERAINT_Qs.nc',it=c(it,it+9))
+    qs <- zoo(aggregate.area(x,FUN='sum')/1.0e6)
+    if (it==1979) Qs <- qs else Qs <- c(Qs,qs)
+  }
   save(Qs,file='Qs.rda')
-  attr(Qs,'unit') <- rep('Kton',3)
+  attr(Qs,'unit') <- 'Gton/(day*m^2)'
   invisible(Qs)
 }
 
@@ -291,7 +283,7 @@ retrieveMERRA <- function(path='~/MERRA',
       torg <- ncatt_get(ncid,'time',attname='begin_date')
       t1 <- ncatt_get(ncid,0,attname='RangeBeginningDate')
       t2 <- ncatt_get(ncid,0,attname='RangeEndingDate')
-      tim <- ncvar_get(ncid,'time')  ## unit = "minutes since 1998-06-01 00:30:00" -> days
+      #tim <- ncvar_get(ncid,'time')  ## unit = "minutes since 1998-06-01 00:30:00" -> days - not right!
       origin <- as.Date(paste(trunc(torg$value/10000),
                             trunc(100*trunc(torg$value/100)-10000*trunc(torg$value/10000))/100,
                             torg$value-100*trunc(torg$value/100),sep='-'))
@@ -691,7 +683,7 @@ timeseries <- function(x,is=1,denominator='total area',ylab=NULL,...) {
 AC <- function(x,plot=TRUE,ylab=NULL,...) {
   y <- as.monthly(as.station(x),FUN='mean')
   if (!plot) return(y)
-  if (is.null(ylab)) ylab <- attr(x,'unit')[is]
+  if (is.null(ylab)) ylab <- attr(x,'unit')
   z <- aggregate(y,month,FUN='mean')
   plot(z,col=c('red','blue','grey'),lwd=3,errorbar=FALSE,
        ylab=ylab,xlab='month',new=FALSE,...)
@@ -749,29 +741,28 @@ Fig2 <- function() {
 }
 
 ## Show the time evolution of the precipitation area
-Fig3 <- function(col=c('black',rgb(0.5,0.5,0.5,0.5),'red',rgb(0.5,0,0,0.5),
-                                 rgb(0,0,0.5,0.5))) {
+Fig3 <- function(col=c('black',rgb(0.2,0.2,0.2,0.4),rgb(0.2,0.2,0.6,0.4),rgb(0.1,0.1,0.5,0.5))) {
   data("Parea")
-  data("Parea.merra")
   data("Parea.month")
-  data("Parea.merra.month")
   data("Parea.eraint.month")
+  data("tpa.eraint")
   par(bty='n')
   x <- merge(aggregate(100*Parea[,1]/attr(Parea,'total area'),year,FUN='mean'),
              aggregate(100*Parea.month/attr(Parea.month,'total area'),year,FUN='mean'),
-             aggregate(100*Parea.merra[,1]/attr(Parea.merra,'total area'),year,FUN='mean'),
-             aggregate(100*Parea.merra.month/attr(Parea.merra.month,'total area'),year,FUN='mean'),
-             aggregate(100*Parea.eraint.month/attr(Parea.eraint.month,'total area'),year,FUN='mean'),all=TRUE)
+             aggregate(100*Parea.eraint.month/attr(Parea.eraint.month,'total area'),year,FUN='mean'),
+             aggregate(50*(tpa.eraint[,2]+tpa.eraint[,3])/tpa.eraint[,5],year,FUN='mean'),all=TRUE)
   plot(x,xlab='',ylab='%',main='Rainfall area',
-       plot.type='single',col=col,lwd=c(3,1,3,1,1))
+       plot.type='single',col=col,lwd=c(3,2,2,3))
   n <- dim(x)[2]
   stats <- rep('',n)
-  for (i in 1:n) {lines(trend(x[,i]),lty=2,col=col[i]); stats[i] <- paste(round(trend.coef(x[,i]),1),'%/decade (p-val=',
-                                                                          round(trend.pval(coredata(x[,i])),3),')',sep='') }
+  for (i in 1:n) {
+    lines(trend(x[,i]),lty=2,col=col[i])
+    stats[i] <- paste(round(trend.coef(x[,i]),1),'%/decade (p-val=',
+                      round(trend.pval(coredata(x[,i])),3),')',sep='') 
+  }
   lines(x[,1],lwd=3)
-  legend(1979,27,paste(c('TRMM','TRMM month','MERRA','MERRA month','ERAINT month'),stats),
-         col=c('black',rgb(0.5,0.5,0.5,0.5),'red',rgb(0.5,0,0,0.5),
-               rgb(0,0,0.5,0.5)),lwd=c(3,1,3,1,1),bty='n',cex=0.7)
+  legend(1980,22.6,paste(c('TRMM day','TRMM month','ERAINT month','ERAINT day'),stats),
+         col=col,lwd=c(3,2,2,3),bty='n',cex=0.8)
   grid()
 }
 
@@ -797,6 +788,10 @@ Fig4 <- function() {
        sub='RCP4.5, CMIP5',col=col,xlab='')
   grid()
   legend(1870,36,as.character(round(dx,1)),col=pal,horiz = TRUE,pch=19,bty='n')
+  
+  change <- apply(aggregate(Parea.cmip5,year,FUN='mean'),2,trend.coef)
+  print('Trend estimates for Fig4 in % over 2000-2100')
+  print(summary(as.numeric(10*change))); print(length(change))
 }
 
 

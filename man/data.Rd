@@ -2,15 +2,12 @@
 \alias{Es}
 \alias{H2O}
 \alias{Parea}
-\alias{Parea.merra}
-\alias{Parea.merra.glob}
 \alias{Parea.month}
-\alias{Parea.merra.month}
 \alias{Parea.eraint.month}
 \alias{Parea.cmip5}
 \alias{Qs}
 \alias{Rho}
-\alias{prtot.merra}
+\alias{tpa.eraint}
 \alias{prtot.eraint}
 \alias{raingaugedata.USA}
 \alias{raingaugedata.World}
@@ -36,21 +33,18 @@
   precipitation over oceans, total precipitation over land, and number
   of valid data. 
   
-  \code{prtot.merra} and \code{prtot.eraint} are zoo objects that hold the mean total daily precipitation (unit=kilo-tons) for the latitude bands 50S-50N, 90S-50S, and 50N-90N, respectivey.
+  \code{pta.eraint} and \code{prtot.eraint} are zoo objects that hold the mean total daily precipitation and area. The unit for the latter is kilo-tons and for the latitude bands 50S-50N, 90S-50S, and 50N-90N, respectivey.
 }
 \usage{
 data(Es)
 data(H2O)
 data(Parea)
-data(Parea.merra)
-data(Parea.merra.glob)
 data(Parea.month)
-data(Parea.merra.month)
 data(Parea.eraint.month)
 data(Parea.cmip5)
 data(Qs)
 data(Rho)
-data(prtot.merra)
+data(tpa.eraint)
 data(prtot.eraint)
 data(raingaugedata.USA)
 data(raingaugedata.World)
