@@ -1,16 +1,13 @@
 \name{Data}
-\alias{Es}
 \alias{H2O}
 \alias{Parea}
 \alias{Parea.month}
 \alias{Parea.eraint.month}
 \alias{Parea.cmip5}
 \alias{Qs}
-\alias{Rho}
 \alias{tpa.eraint}
 \alias{prtot.eraint}
-\alias{raingaugedata.USA}
-\alias{raingaugedata.World}
+\alias{ptot.cmip}
 \title{Global data extract from ERAINT and TRMM}
 \description{Indices describing the vapour saturation pressure based on
   ERAINT 2-m temperature (\code{Es}), the total air column water content
@@ -23,8 +20,7 @@
   \code{\link{H2O}}, \code{\link{distill.index}},
   and \code{\link{moistflux}}.
 
-  The time series objects \code{Es}, \code{H2O}, \code{Qs}, and
-  \code{Rho} hold three different series: (is=1) the sum between
+  The time series objects \code{H2O}, and \code{Qs} hold three different series: (is=1) the sum between
   50S-50N, (is=2) 90S-50S, and (is=3) 50N-90N.
 
   \code{Parea} contains nine series: Precipitation area,Fraction
@@ -36,16 +32,13 @@
   \code{pta.eraint} and \code{prtot.eraint} are zoo objects that hold the mean total daily precipitation and area. The unit for the latter is kilo-tons and for the latitude bands 50S-50N, 90S-50S, and 50N-90N, respectivey.
 }
 \usage{
-data(Es)
 data(H2O)
 data(Parea)
 data(Parea.month)
 data(Parea.eraint.month)
 data(Parea.cmip5)
 data(Qs)
-data(Rho)
 data(tpa.eraint)
 data(prtot.eraint)
-data(raingaugedata.USA)
-data(raingaugedata.World)
+data(ptot.cmip)
 }
