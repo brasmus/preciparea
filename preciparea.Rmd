@@ -1,0 +1,743 @@
+---
+title: 'Implications of a decrease in the precipitation area - Supporting Material'
+author: 'Rasmus Benestad'
+date: 'Jule 05, 2017'
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Statistics on the precipitation area 
+
+This is a document is intended as the supporting material for the paper with the title 'Implications of a decrease in the precipitation area'. It is meant to provide a record like a lab note-book, to enhance the possibility of replication and provide details about the analysis. It provides openness and transparency, and is not mean to be a 'well-structured' document.
+
+### Getting the data
+
+The TRMM data was downloaded (February 2017) from NASA data portals <https://disc2.gesdisc.eosdis.nasa.gov/data/TRMM_L3/TRMM_3B42_Daily.7/> using he instructions provided in <https://disc.sci.gsfc.nasa.gov/recipes/?q=recipes/How-to-Download-Data-Files-from-HTTP-Service-with-wget> and <https://disc2.gesdisc.eosdis.nasa.gov/data/TRMM_L3/TRMM_3B42_Daily.7/doc/TRMM_Readme_v3.pdf>. It is necessary to create a user account and set up user details/cookies as descibed in the intructions. The code presented here was written for Linux, and it is uncertain whether it works for Windows machines. It maybe will work on iOS. The data volumes are large and require some time and space for a complete download
+
+#### Satellite data - the Tropical Rain Measurement Mission (TRMM)
+
+Download the daily TRMM data (~16Gb and takes time) on a Linux platform (using a terminal and bash-scripts).
+
+```{bash, eval=FALSE}
+## Retrieving the data:
+## https://disc2.gesdisc.eosdis.nasa.gov/data/TRMM_L3/TRMM_3B42_Daily.7/
+## See this web page for how to download the files.
+## https://disc.sci.gsfc.nasa.gov/recipes/?q=recipes/How-to-Download-Data-Files-from-HTTP-Service-with-wget
+## https://disc2.gesdisc.eosdis.nasa.gov/data/TRMM_L3/TRMM_3B42_Daily.7/doc/TRMM_Readme_v3.pdf
+
+## Script for downloading thr TRMM data
+#!/bin/bash
+mkdir TRMM
+cd TRMM
+for year in {1998..2016}
+do
+  for month in {1..12}
+  do
+  wget --load-cookies ~/.urs_cookies --save-cookies ~/.urs_cookies --keep-session-cookies 
+       -r -c -nH -nd -np -A nc4 
+       "https://disc2.gesdisc.eosdis.nasa.gov/data/TRMM_L3/TRMM_3B42_Daily.7/$year/$month"
+  done
+done
+```
+
+
+#### Independent reanalysis - ERAINT 
+
+The ERAINT data were downloaded from <http://apps.ecmwf.int/datasets/data/interim-full-moda/levtype=sfc/> (Monthly means of daily means as well as daily accumultated precipitation) as netCDF and renamed `ERAINT_t2m.nc` (2-meter temperature), `ERAINT_Qs.nc` (surface moisture flux), and `ERAINT_Q-columntotal.nc` (total column water). The daily precipitation was downloaded in multiple files due to large data volumes: `ERAINT_24hr_precip*.nc`. The unit of the precipitation was 'm' (it is assumed it was m/day).
+
+
+The following lines of code were the contents of the script `totprecip.jnl` implemnted by PMEL Ferret:
+
+
+```{bash, eval=FALSE}
+use $1
+set reg/y=50S:50
+CANCEL LIST/HEAD
+let TotP = TP[x=@din,y=@din]
+let pre001 IF TP GT 0.0001 then 1 else 0
+let Ap001 = pre001[x=@din,y=@din]
+let pre01 IF TP GT 0.001 then 1 else 0
+let Ap01 = pre01[x=@din,y=@din]
+let pre1 IF TP GT 0.01 then 1 else 0
+let Ap1 = pre1[x=@din,y=@din]
+let pre0 IF TP LT -9999 then 0 else 1
+let TotA=pre0[x=@din,y=@din]
+!save/append/clobber/file=totprecip.nc TotP,Ap01,Ap1,TotA
+list/append/file=totprecip.txt TotP, Ap001,Ap01,Ap1,TotA
+cancel data ($1)  
+cancel memory
+! Earth's area = 5.111859e+14 m^2
+```
+
+The Ferret script was run through bash jobs:
+
+```{bash, eval=FALSE}
+#!/bin/bash
+for f in ERAINT_24hr-precip*.nc; do
+  echo $f
+  /home/rasmusb/ferret/bin/ferret -gif -script ~/Downloads/totprecip.jnl $f
+done
+
+```
+
+The use of MERRA-2 was also attempted, but without success. The right data (daily precipitation) was hard to find, and a search on the web site gave numerous hits with all sorts of precipitation results but not for 24-hr precipitation on a daily basis through the reanalysis interval. A Google search did not give any useful tips. 
+
+#### Preparing indices from the data
+
+This section shows how indeces stored in the `preciparea` package were derived, such as `data("Parea")`.
+
+##### TRMM
+
+The TRMM netCDF files were unfortunately not stored with CF convention and a time dimension, and it was unclear how common netCDf processing tools like `ncra` could be applied to estimate the monthly means. Instead, the monthly data were aggrigated from the daily ones in the R-environment and the R-package `preciparea` (which was time-consuming).
+
+The following command line were used to prepare the daily indicex describing the precipitation area $A_P = \int_A H(x-x_0)da$, where $H$ is the Heaviside function, $x$ is the precipitation, and $x_0$ is a precipitation threshold, where $H(x) = 1\ \forall \ x \ge x_0$ and $H(x) = 0\ \forall \ x<x_0$. The index $A_P$ was estimated through the `retrievemodis` function and stored in the object `Parea` (short for precipitation area): 
+
+```{r, eval=FALSE}
+## TRMM: daily data
+retrievemodis() -> Parea
+save(Parea,file='Parea.rda')
+## data("Parea")
+```
+
+It was convenient to also include a number of other indices in `Parea` while estimating $A_P$, and the object also was designed to hold additional information such as the precipitation area over land and oceans respectively in addition to the precipiation intensity (wet-day mean precipitation) and total precipitation amount $P_{tot}=\int_A P da$ where $P$ is the precipitation. The total precipitation can also be written as $P_{tot}=A_P \overline{P}$.  
+
+```{r, eval=FALSE}
+attr(Parea,'longname')
+#[1] "Precipitation area"              "Precipitation area over ocean"   "Precipitation area over land"   
+#[4] "wet-day mean preciptation"       "total precipitation"             "total precipitation over oceans"
+#[7] "total precipitation over land"   "number of valid data"           
+```
+
+*Quality check:*
+
+Repeat the calculations with NOAA/Pacific Marine Environment Lab (PMEL) Ferret:
+
+```{bash, eval=FALSE}
+use $1
+set reg/y=50S:50
+CANCEL LIST/HEAD
+let precip = precipitation
+let TP = precip[x=@din,y=@din]
+let pre IF precip GT 1 then 1 else 0
+let A = pre[x=@din,y=@din]
+!save/append/clobber/file=totprecip.nc TP,A
+list/append/file=totprecip.txt TP,A
+cancel data ($1)  
+cancel memory 
+```
+
+The bash-script `ferretjobs.sh` was used to carry out the ferret jobs:
+
+```{bash, eval=FALSE}
+## Ferret script to estimate the total precipitation and the area
+## Rasmus.Benestad@physics.org
+#!/bin/bash
+
+for f in 3B42*.nc4; do
+  echo $f
+  /usr/local/ferret/bin/ferret -gif -script ~/TRMM/totprecip.jnl $f
+done
+```
+
+The job was implemented by typing the command:
+
+```{bash,eval=FALSE}
+./ferretjobs.sh
+```
+
+The results were then read in R and compared with the calculations done in R:
+
+The data looks like 
+```{bash, eval=FALSE}
+I / *:     104515.  8493.
+I / *:     97743.  8408.
+I / *:     98213.  8205.
+I / *:     90036.  8106.
+...
+```
+
+The format of the output means that Ferret did not make use of the metadata (coordinate units etc) for properly estimating the area and the total precipitation. The output from Ferret was then reformatted in R: 
+
+
+```{r}
+library(preciparea)
+tp.in <- read.table('~/TRMM/totprecip.txt')
+pta <- cbind(tp.in$V4,tp.in$V5)
+tpa.day <- zoo(pta,order.by=seq(from=as.Date('1998-01-01'),by='day',
+                                            length.out=length(pta[,1])))
+names(tpa.day) <- c('tot.precip','precip.area')
+```
+
+##### Repeating the analysis on monthly mean precipitation
+
+A quality check was applied to the *monthly* TRMM data
+
+```{r, eval=FALSE}
+## May have to run this several times with different values for yr1
+## and having restarted R - there seems to be a memory leak in ncdf4.
+TRMM2monthly()
+## Processing for data("Parea.month")
+```
+
+The monthly TRMM files were also concatinated into one file using NCO so that the monthly data derived from daily $A_P$ could be compared with monthly data estimated from monthly mean precipitation:
+
+```{bash, eval=FALSE}
+ncrcat trmm-precip*.nc trmm-precip-mon.nc
+```
+
+```{r, eval=FALSE}
+## Only the precipitation area - not total precipitation
+monthP2area(x0=4.5) -> Parea.month
+```
+
+*Quality check:*
+
+Repeat the calculations with PMEL Ferret:
+
+
+```{bash, eval=FALSE}
+use trmm-precip-mon.nc
+set reg/y=50S:50
+CANCEL LIST/HEAD
+let TP = precip[x=@din,y=@din]
+let pre IF precip GT 4.5 then 1 else 0
+let A = pre[x=@din,y=@din]
+save/clobber/file=totprecip.nc TP,A
+list/clobber/file=totprecip.txt TP,A
+```
+
+The results were then read in R and reformatted:
+
+```{r}
+tp.in <- read.table('~/TRMM-monthly/totprecip.txt')
+pta <- cbind(tp.in$V5,tp.in$V6)
+tpa.mon <- zoo(pta,order.by=seq(from=as.Date('1998-01-01'),by='month',
+                                            length.out=length(pta[,1])))
+names(tpa.mon) <- c('tot.precip','precip.area')
+```
+
+##### ERAINT 
+
+Supporting analyses included ERAINT-based indices describing the global rate of evaporation $Q_s=\int_A Eda$, total atmospherc water, and the area with precipitation $A_P$.    
+
+```{r, eval=FALSE}
+## ERAINT
+tp.in <- read.table('~/Downloads/totprecip.txt')
+pta <- cbind(tp.in$V5,tp.in$V6,tp.in$V7,tp.in$V8,tp.in$V9)
+n <- length(pta[,1])
+PTA <- pta[seq(1,(n-1),by=2),] + pta[seq(2,n,by=2),]
+
+tpa.eraint <- zoo(PTA,order.by=seq(from=as.Date('1979-01-01'),by='day',
+                                   length.out=length(PTA[,1])))
+names(tpa.eraint) <- c('tot.precip','area.P.gt.0.1mm','area.P.gt.1mm','area.P.gt.10mm','tot.area')
+save(tpa.eraint,file='tpa.eraint.rda')
+```
+
+ERAINT also suggest a decreasing $A_p$, from 36% to about 33%. This is roughly consistent with the TRMM data, but the total area estimated for ERAINT was estiamted to be $7.8 \times 10^8 km^2$ whereas the area of the earth is $5.1 \times 10^8 km^2$.
+
+### S1 Total precipitation area from ERAINT
+
+```{r S1}
+data(tpa.eraint)
+plot(100*tpa.eraint[,2]/tpa.eraint[,5],col='grey',ylab=expression(A[P]))
+grid()
+lines(trend(100*tpa.eraint[,2]/tpa.eraint[,5]),lty=2)
+```
+
+Other quantities from ERAINT include the rate of evaportation and the total columnt water: $H_2O=\int_A q da$ where $q$ is the water mass in the entire air column.
+
+```{r, eval=FALSE}
+## Aggregated instantaneous surface moisture fluxes (evaporation) 
+moistflux() -> Qs
+## data("Qs")
+
+## Total atmospheric column water
+columnH2O() -> H2O
+## data("H2=")
+```
+
+Furthermore, the total precipitation was also estimated from ERAINT for comparing with TRMM. 
+
+```{r, eval=FALSE}
+#ERAINT: units in m/s
+prtot.eraint <- globalsum('~/Downloads/ERAINT_precip.nc')
+## The data is stored as the daily mean precipitation for 00:00-12:00hr and 12:00-24:00hr bacthes
+mm <- as.character(month(prtot.eraint))
+mm[nchar(mm)==1] <- paste('0',mm[nchar(mm)==1],sep='')
+yyyymm <- paste(year(prtot.eraint),mm,'01',sep='-')
+prtot.eraint <- aggregate(prtot.eraint,yyyymm,mean)*1000  # Unsure about 'mean' or 'sum' 
+index(prtot.eraint) <- as.Date(index(prtot.eraint))
+prtot.eraint <- prtot.eraint*1e3# units in mm rather than m
+attr(prtot.eraint,'unit') <- rep('tons',3)
+save(prtot.eraint,file='prtot.eraint.rda')
+```
+
+The units of ERAINT precipitation is $m$ and when aggregated using 'sum' the value is close to twice that of the TRMM data and twice the daily evaporation. The data comes with two values per month - it's not clear whether the both values are  daily averages or 12-hour accumulated values. 
+
+Ferret script:
+
+```{bash, eval=FALSE}
+use ERAINT_precip.nc
+set reg/y=50S:50N
+CANCEL LIST/HEAD
+let totpre = TP[x=@din,y=@din]
+let pre IF TP GT 0.005 then 1 else 0
+let A = pre[x=@din,y=@din]
+list/clobber/file=totmonprecip.txt totpre,A
+```
+
+The estimation of the global rate of evaporation from ERAINT was also carried out in Ferret: 
+
+```{bash, eval=FALSE}
+use ERAINT_Qs.nc
+let Qs = IE[x=@din,y=@din]*86.4
+CANCEL LIST/HEAD
+list/file=qs.txt qs
+```
+
+
+
+```{r}
+## TYhe ERAINT data were stored in a devious format:
+#01-JAN-1979 00:00 /   1:  1.259E+12  1.504E+14
+#01-JAN-1979 12:00 /   2:  1.278E+12  1.557E+14
+#01-FEB-1979 00:00 /   3:  1.254E+12  1.573E+14
+#01-FEB-1979 12:00 /   4:  1.275E+12  1.640E+14
+tp.in <- read.table('~/Downloads/totmonprecip.txt')
+pta <- cbind(tp.in$V5,tp.in$V6)
+n <- length(pta[,1])
+PTA <- pta[seq(1,(n-1),by=2),] + pta[seq(2,n,by=2),]
+names(PTA) <- c('tot.precip','precip.area')
+tpa.eraint <- zoo(PTA,order.by=seq(from=as.Date('1979-01-01'),by='month',
+                                            length.out=length(PTA[,1])))
+```
+
+### S2 Check: Comparison of total precipitation amount from ERAINT based on Ferret and the R-package `esd`
+
+```{r S2}
+data("prtot.eraint")
+# Compare with the calculations done in R:
+plot(stand(tpa.eraint[,1]),lwd=3,col='grey')                        # From PMEL Ferret
+lines(stand(prtot.eraint[,1]),col='red',lty=3)   # From R
+print(mean(tpa.eraint[,1])*0.5)
+print(mean(prtot.eraint[,1]))
+```
+
+A comparisons verified the consistency of the calulations in R and with Ferret, albeit with different units (not shown)
+
+##### CMIP 5 simulations
+
+Estimate monthly aggregated precipitation area from the RCP4.5 CMIP5 experiment. These are only crude indices since the spatial resolution varies from model to model and the grid boxes represent an area average of the rainfall while the rain in reality only falls over a fraction of the area. 
+
+```{r, eval=FALSE}
+PareaCMIP() -> Parea.cmip5
+```
+
+### The data for the analysis is provided in the R-package `preciparea`
+
+```{r}
+data(Parea)
+data(Parea.month)         # Only precipitation area
+data(Parea.eraint.month)  # Only precipitation area
+data(prtot.eraint)
+```
+
+Some basic statistics such as the mean area of precipitation (km$^2$), wet-day mean precipitation (mm/day) and total precipitation (Ktons) estimated for the 50S-50N according to the TRMM data (`nv` is the number of valid data points):
+
+```{r}
+colMeans(Parea)
+```
+
+## The figures in the main paper:
+
+The figures are not shown here, but the code for producing them are lsted for greater transparency.
+
+### Figure 1
+
+```{r, eval=FALSE}
+Fig1()
+```
+
+### Figure 2
+
+```{r, eval=FALSE}
+Fig2()
+```
+
+
+### Figure 3
+
+```{r, eval=FALSE}
+Fig3()
+```
+
+
+### Figure 4
+
+```{r, eval = FALSE}
+Fig4()
+```
+
+### Other estimates 
+
+```{r}
+t1 <- start(Parea)
+t2 <- end(Parea)
+A.p <- window(trend(Parea[,1]),start=t1,end=t2)
+
+## Lower-Upper range
+print(range(Parea[,1]))
+## P-value for trend analysis
+print(trend.pval(Parea[,1]))
+## Trend: min and max
+print(range(A.p))
+## Change in percentage
+print(100*diff(range(A.p))/max(A.p))
+## Trend as percentage of the total area:
+print(round(100*range(A.p)/attr(Parea,'total area'),2))
+```
+
+### Table GCM and mean precipitation area
+
+Check how the mean precipitation area in (1000km)^2 varies wih the GCM and spatial resolution:
+
+```{r}
+data(Parea.cmip5)
+y <- colMeans(Parea.cmip5)*1.e-6
+names(y) <- attr(Parea.cmip5,'model_id')
+print(y)
+```
+
+Test to see if there is a systematic dependency on the model spatial  resolution.
+
+```{r}
+## ANOVA to analyse potential systematic relationship between model resolution and mean precipitation area
+data("IPCC.AR5.Table.9.A.1") ## From the esd-package
+
+nm1 <- tolower(gsub('.','',gsub('-','',IPCC.AR5.Table.9.A.1$Model.Name),fixed=TRUE))
+nm2 <- tolower(gsub('.','',gsub('-','',attr(Parea.cmip5,'model_id')),fixed=TRUE))
+##x <- IPCC.AR5.Table.9.A.1$Horizontal.Grid[charmatch(nm2,nm1)]
+x <- cmipgcmresolution()[charmatch(nm2,nm1)]
+rbind(IPCC.AR5.Table.9.A.1$Model.Name,as.character(IPCC.AR5.Table.9.A.1$Horizontal.Grid),x)
+resbias <- data.frame(y=y,x=x)
+print(summary(lm(y ~ x, data=resbias)))
+```
+
+The results from the ANOVA suggests that there is a tendency for smaller mean precipitation area for models with higher resolution since the regression coefficient $x$ is negative. The relationship is statistically significant at the 5\%-level. One issue is that different spatial resolution may mean different values, as they reflect area mean values for the grid box. This may also influence the analysis as a constant threshold value $x_0$ for all these models may select precipitation events differently for models with high and low spatial resolution, unless the regridding of the models has taken the area-mean into account. 
+
+The resolution in this case was derived from a table of model details from the IPCC AR5, and the data here had all been regridded to the same spatial grid in the KNMI Climate Explorer <https://climexp.knmi.nl/>. 
+
+## Supporting material and additional analysis
+
+
+### Rainfall area over ocean
+
+The precipitation area over ocean was esimated by masking out all land/contentent grid boxes. This index is the second in the `Parea` object: 
+
+```{r}
+timeseries(Parea,is=2)
+print(trend.coef(Parea[,2]))
+print(trend.pval(Parea[,2]))
+print(range(window(trend(Parea[,2]),start=t1,end=t2)))
+```
+
+There was a clear decrease in $A_P$ over the oceans.
+
+
+### Rainfall area over land
+
+Consequently, the rainfall area over land was estimated by masking all ocean grid points: 
+
+```{r}
+timeseries(Parea,is=3)
+print(trend.coef(Parea[,3]))
+print(trend.pval(Parea[,3]))
+print(range(window(trend(Parea[,3]),start=t1,end=t2)))
+```
+
+The total rain area over land is minor compared to the rain area over the oceans. Furthermore, the trend is much weaker and not statistically significant at the 5\%-level. There is a more pronounced annual cycle in $A_P$ over land than over the oceans, which may be related to monsoon-type systems. 
+
+
+## Total precipitation from the TRMM data
+
+The 50S-50N total precipitation amount was estimated by summing up all grid boxes with rainfall for each day:
+
+```{r}
+timeseries(Parea,is=5,denominator=1e6,ylab='Gton')
+## Lower-Upper range
+print(range(Parea[,5])/1.0e6)
+## Check period
+print(c(start(Parea),end(Parea)))
+## P-value for trend analysis
+print(trend.coef(Parea[,5]))
+print(trend.pval(Parea[,5]))
+## Trend: min and max: ocean and land
+print(range(window(trend(Parea[,5]),start=t1,end=t2)/1e6))
+## Trend: min and max: ocean 
+print(trend.coef(Parea[,6]))
+print(trend.pval(Parea[,6]))
+print(range(window(trend(Parea[,6]),start=t1,end=t2)/1e6))
+## Trend: min and max: land
+print(trend.coef(Parea[,7]))
+print(trend.pval(Parea[,7]))
+print(range(window(trend(Parea[,7]),start=t1,end=t2)/1e6))
+
+```
+
+The total daily volume of rainfall between 50S--50N exhibits a wide range of daily fluctuations between 868  -- 1494 Gton, but there is no strong long-term trend. An increasing trend is seen in the plot from 1120 -- 1150 Gton.
+
+
+### S3 The total precipitation from ERAINT:
+
+```{r S3}
+## ERAINT
+plot(prtot.eraint[,1]/1e9,ylab='Gton',main='ERAINT total precipitation 50S-50N',col='red',lwd=2)
+lines(trend(prtot.eraint[,1]/1e9))
+## Trend: min and max
+print(trend.coef(prtot.eraint[,1]))
+print(trend.pval(prtot.eraint[,1]))
+print(range(window(trend(prtot.eraint[,1]),start=t1,end=t2)/1e9))
+```
+
+
+Compare the total precipitation between 50S--50N with the rest of the globe:
+
+```{r}
+print(colMeans(prtot.eraint)/1.0e9)
+```
+
+
+### Rainfall amount over ocean
+
+
+This index can be split into the total rainfall amount over the oceans by masking out the land grid boxes:
+
+```{r}
+## The units are mm*km^2 -> 1000m^3 -> million kg or 1000 tons (1 Kton).
+timeseries(Parea,is=6,denominator=1e6,ylab='Gton')
+```
+
+The contribution to the total precipitation from the oceans exhibits a slightly more pronounced increasing trend than the total oceans+land amounts do.
+
+The fraction of earth's area between 50S--50N is $\int$ $2 \pi a \cos (\phi) a d \phi/4 \pi a^2 = [\sin (\phi_2) - \sin (\phi_1)]/2$ where $\phi= \pm \pi*50/180$.
+
+```{r}
+print(paste(round(100*sin(pi*50/180)),"% of earth's surface area is between 50S-50N"))
+```
+
+
+### Rainfall amount over land
+
+The corresponding index for the total land precipitation is
+
+```{r}
+timeseries(Parea,is=7,denominator=1.0e6,ylab='Gton')
+```
+
+The TRMM data suggests a declining trend in the total precipitation amount land in contrast to the precipitation over ocean and the sum oceans+land. 
+
+## Precipitation intensity from TRMM
+
+The rain intensity $\overline{P}$ can be estimated by taking the average of all grid boxes with rain for each day: 
+
+```{r}
+timeseries(Parea,is=4,denominator=1)
+## Trend: min and max
+print(trend.coef(Parea[,4]))
+print(trend.pval(Parea[,4]))
+print(round(range(window(trend(Parea[,4]),start=t1,end=t2)),2))
+```
+
+The graph reveals an increasing trend in $\overline{P}$, and the trend analysis is applied to a long series of daily values which makes it statistical significant at the 5\%-level  (p-value $\approx 10^{-21}$).
+
+A combination of a declining rainfall area over time with increasing precipitation amount is consistent with an increasing precipitation intensity: $P = \overline{P} * A_P$.
+
+## Check - covariation with the global mean temperature?
+
+Assess the scaling relation between observed precipitation area and the global mean temperature through regression analysis ($A_P = \beta_0 + \beta_1 T + \eta$) where regression coefficient $\beta_1$ describes the slope (rate of change in $A_P$ with the global mean temperature) and $\beta_0$ the zero-intersect and $\eta$ being a noise-term.
+
+
+```{r}
+require(esd)
+hc4 <- HadCRUT4()
+## The precipitation area:
+XY <- merge(annual(hc4),annual(Parea[,1]),all=FALSE)
+cal <- data.frame(x=coredata(XY[,1]),y=coredata(XY[,2]))
+pax <- lm(y ~x, data=cal)
+print(summary(pax))
+
+## Total precipitation:
+XY <- merge(annual(hc4),annual(Parea[,5]),all=FALSE)
+cal <- data.frame(x=coredata(XY[,1]),y=coredata(XY[,2]))
+print(summary(lm(y ~x, data=cal)))
+```
+
+An ANOVA on the TRMM annual mean values indicates strong covariance between the global mean temperature and the precipitation area, with $R^2$ of 0.6 and a negative regression coefficient $\beta_1 = -17 \times 10^6 km^2/$degree K. (statistically sign. at the 0.1\%-level). A similar analysis for the total precipitation suggests little covariance.
+
+
+
+### S4 Naive extrapolation for future daily $A_P$ based on global mean temperature change
+
+```{r S4}
+data("global.t2m.cmip5")
+Pacmip5 <- global.t2m.cmip5
+for (i in 1:dim(global.t2m.cmip5)[2]) {
+  pre <- data.frame(x=coredata(global.t2m.cmip5[,i]))
+  coredata(Pacmip5)[,i] <- predict(pax,newdata=pre)
+}
+plot(Pacmip5*1.0e-6,plot.type='single',main='Extrapolated precipitation area',
+     ylab='million km^2',ylim=c(0,200),col=rgb(0,0,0,0.2))
+grid()
+print(100*(mean(window(Pacmip5,start=2079,end=2099)) - mean(window(Pacmip5,start=1998,end=2016))) /mean(window(Pacmip5,start=1998,end=2016)))
+```
+
+A naive extrapolation assuming that (a) the regression analysis between the global mean temperature and precipitation area captures a true dependency and (b) that this dependency is stationary and holds in the future suggests a reduction in $A_P$ from near 110 million km$^2$  in the 20th century to 75 million km$^2$ by 2100. The CMIP5 ensemble mean suggests around a 28\% decrese in $A_P$.
+
+## S5 Total atmospheric water content from ERAINT
+
+The total 50S-50N atmospheric water content was estimated from the ERAINT reanalysis
+
+```{r S5}
+data(H2O)
+plot(H2O[,1]/1e9,ylab='Gton')
+## The 50S-50N water content is much higher than for the high latitude regions
+## "kg km**-2" agregated (sum) over the area 
+lines(trend(H2O[,1]/1e9))
+grid()
+## Trend: min and max
+print(trend.coef(H2O[,1]))
+print(trend.pval(H2O[,1]))
+print(range(window(trend(H2O[,1]),start=t1,end=t2)/1e9))
+print(c(start(H2O),end(H2O)))
+colMeans(H2O)/1e9 ## Gtons
+```
+
+The total atmospheric water exhibits weak long-term changes according to the ERAINT reanalysis and shows a hint of an increase over time.
+
+The surface moisture flux $Q_s$ from ERAINT is the same as evaporation $E_s$ and the declining trends (negative numbers) indicates an increased evaporation over time. This is consistent with increased $P_{tot}$ in the TRMM data. Negative values indicate flux out of the oceans.
+
+### S6 Global evaporation from ERAINT
+
+```{r S6}
+data(Qs)
+plot(annual(Qs,FUN='mean'),ylab='Gton')
+## The 50S-50N moisture flux is much higher than for the high latitude regions
+## Units are mm/day  * km^2 which is equivalent to 1000m^3/day or kilo-tons/day
+lines(trend(annual(Qs,FUN='mean')))
+grid()
+## Giga-tons/day - divide by 1e6
+
+## Trend: min and max
+print(trend.coef(Qs[,1]))
+print(trend.pval(Qs[,1]))
+print(range(window(trend(Qs[,1]),start=t1,end=t2)))
+print(c(start(Qs),end(Qs)))
+mean(Qs)
+```
+
+
+## Previous estimates of global precipitation flux
+
+Table 1 in Zektser et al (1993) <http://www.sciencedirect.com/science/article/pii/0022169493901829> 
+
+```{r}
+## Example in the text: evaporation
+print(294*128) ## km^3/year - should be 38,000 km^3 according to the article
+## As kg/day: 1 km^3 = 1.oe9 tons = 1 Gton.
+print(294*128/365.25)
+
+## Precipitation over land
+print(paste('Precipitation: 834 mm/year=',round(834*128/365.25),'Gton/day'))
+```
+
+Estimate of the global mean precipitation from Kiel and Trenberth: 2.46 -- 2.90 mm/day <http://journals.ametsoc.org/doi/pdf/10.1175/1520-0477%281997%29078%3C0197%3AEAGMEB%3E2.0.CO%3B2>
+
+```{r}
+print(paste('2.46mm/day =',round(2.46*1.0e-3 * 4*pi*6378000^2*1.0e-9),'Gton/day'))
+print(paste('2.46mm/day =',round(2.90*1.0e-3 * 4*pi*6378000^2*1.0e-9),'Gton/day'))
+```
+
+Legates (1995):  2.6 to 3.1 mm/day <http://onlinelibrary.wiley.com/doi/10.1002/joc.3370150302/full> 
+
+```{r}
+print(paste('2.6mm/day =',round(2.6*1.0e-3 * 4*pi*6378000^2*1.0e-9),'Gton/day'))
+print(paste('3.1mm/day =',round(3.1*1.0e-3 * 4*pi*6378000^2*1.0e-9),'Gton/day'))
+```
+
+## S7 Test the correlation between the precipitation area and galactic cosmic rays
+
+Compare the cosmic rays from Climax with the precipitation area
+
+```{r S7}
+require(replicationDemos)
+data(gcr)
+t <- paste(substr(gcr$Date,7,10),substr(gcr$Date,1,2),substr(gcr$Date,4,5),sep='-')
+climax <- zoo(as.numeric(as.character(gcr$Climax)),order.by=as.Date(t))
+plot(climax,Parea[,1])
+gcrpa <- merge(climax,Parea[,1],all=FALSE)
+ok <- is.finite(gcrpa[,1]) & is.finite(gcrpa[,2])
+print(cor.test(gcrpa[ok,1],gcrpa[ok,2]))
+```
+
+
+## Estimate of the portion of the vertical energy flow due to convection from the total precipitation
+
+The precipitation was assumed to be a by-product of moist convection with an energy content equivalent to the release of latent heat of evaporation $P L_E$: 
+
+$f_{conv}= \frac{P L_e}{\pi a^2 (1-A) S_0}$
+
+```{r}
+a <- 6378000 # Earth's area (m)
+A = 0.3 # The albedo
+S0 <- 1361 # The Solar constant (W/m²)
+Le <- 2264.76 * 1000 # Latent heat of evaporation (https://en.wikipedia.org/wiki/Latent_heat) J/kg
+tot.E <- pi * a^2 * (1-A) * S0 * 24 * 3600 # Energy over 24 hrs
+P <- sum(colMeans(prtot.eraint))*1000
+frac.E <- P*Le/tot.E * 100
+print(paste('Convection is responsible for ',round(frac.E,2),'percent of the vertical heat flow'))
+```
+
+
+### S8 Trend anlysis of the proportionn of vertical energy flow being connected to convection
+
+```{r S8}
+fE <- (prtot.eraint[,1]+prtot.eraint[,2]+prtot.eraint[,3])*Le*100000/tot.E
+plot(fE)
+grid()
+lines(trend(fE))
+prop <- window(trend(fE),start=t1,end=t2)
+print(round(c(prop[1],prop[length(prop)]),1))
+```
+
+For the TRMM data:
+
+```{r}
+y <- window(trend(Parea[,5]),start=t1,end=t2)
+print(paste('Percentage energy flow associated with convection',round(c(y[1],y[length(y)])*Le*1e6/tot.E*100),'%'))
+```
+
+## S9 Estimate the globally summed precipitation from CMIP5:
+
+```{r S9}
+data(ptot.cmip)
+plot(zoo(ptot.cmip)/1e6,plot.type='single',ylab='Gton')
+pclim <- colMeans(window(ptot.cmip,start=1980,end=2009))/1e6  # mean total precipitation
+print(summary(pclim*Le/tot.E * 100))
+print(summary(pclim))  # In gigatons
+Ptrends <- apply(window(ptot.cmip,start=2000,end=2100)/1e6,2,trend.coef)
+print(summary(Ptrends))
+Ftrends <- apply(100*window(ptot.cmip,start=2000,end=2100)*Le*1e6/tot.E,2,trend.coef)
+## Change in percent of energy flow connected with convection between 2000 and 2100
+print(summary(Ftrends*10))
+```
+
+
+## Acknowledgements:
+
+
+The PMEL/NOAA software ferret <http://ferret.pmel.noaa.gov/Ferret/> and David Pierce's ncview were used to check and verify the netCDF files and the calculations. The function `globalsum` and ferret indicated similar results for the monthly mean precipitation totals. 
+
+
