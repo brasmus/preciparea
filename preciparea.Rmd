@@ -162,8 +162,7 @@ I / *:     90036.  8106.
 The format of the output means that Ferret did not make use of the metadata (coordinate units etc) for properly estimating the area and the total precipitation. The output from Ferret was then reformatted in R: 
 
 
-```{r}
-library(preciparea)
+```{r, eval=FALSE}
 tp.in <- read.table('~/TRMM/totprecip.txt')
 pta <- cbind(tp.in$V4,tp.in$V5)
 tpa.day <- zoo(pta,order.by=seq(from=as.Date('1998-01-01'),by='day',
@@ -211,7 +210,7 @@ list/clobber/file=totprecip.txt TP,A
 
 The results were then read in R and reformatted:
 
-```{r}
+```{r, eval=FALSE}
 tp.in <- read.table('~/TRMM-monthly/totprecip.txt')
 pta <- cbind(tp.in$V5,tp.in$V6)
 tpa.mon <- zoo(pta,order.by=seq(from=as.Date('1998-01-01'),by='month',
@@ -241,6 +240,7 @@ ERAINT also suggest a decreasing $A_p$, from 36% to about 33%. This is roughly c
 ### S1 Total precipitation area from ERAINT
 
 ```{r S1}
+library(preciparea)
 data(tpa.eraint)
 plot(100*tpa.eraint[,2]/tpa.eraint[,5],col='grey',ylab=expression(A[P]))
 grid()
@@ -300,7 +300,7 @@ list/file=qs.txt qs
 
 
 
-```{r}
+```{r, eval=FALSE}
 ## TYhe ERAINT data were stored in a devious format:
 #01-JAN-1979 00:00 /   1:  1.259E+12  1.504E+14
 #01-JAN-1979 12:00 /   2:  1.278E+12  1.557E+14
@@ -409,6 +409,8 @@ data(Parea.cmip5)
 y <- colMeans(Parea.cmip5)*1.e-6
 names(y) <- attr(Parea.cmip5,'model_id')
 print(y)
+## The multi-model ensemble size for the annual global mean precipitation
+print(dim(Parea.cmip5))
 ```
 
 Test to see if there is a systematic dependency on the model spatial  resolution.
@@ -592,6 +594,8 @@ plot(Pacmip5*1.0e-6,plot.type='single',main='Extrapolated precipitation area',
      ylab='million km^2',ylim=c(0,200),col=rgb(0,0,0,0.2))
 grid()
 print(100*(mean(window(Pacmip5,start=2079,end=2099)) - mean(window(Pacmip5,start=1998,end=2016))) /mean(window(Pacmip5,start=1998,end=2016)))
+## The multi-model ensemble size for the annual global mean temperature
+print(dim(Pacmip5))
 ```
 
 A naive extrapolation assuming that (a) the regression analysis between the global mean temperature and precipitation area captures a true dependency and (b) that this dependency is stationary and holds in the future suggests a reduction in $A_P$ from near 110 million km$^2$  in the 20th century to 75 million km$^2$ by 2100. The CMIP5 ensemble mean suggests around a 28\% decrese in $A_P$.
@@ -672,6 +676,7 @@ print(paste('3.1mm/day =',round(3.1*1.0e-3 * 4*pi*6378000^2*1.0e-9),'Gton/day'))
 Compare the cosmic rays from Climax with the precipitation area
 
 ```{r S7}
+## From github.com/brasmus/replicationDemos
 require(replicationDemos)
 data(gcr)
 t <- paste(substr(gcr$Date,7,10),substr(gcr$Date,1,2),substr(gcr$Date,4,5),sep='-')

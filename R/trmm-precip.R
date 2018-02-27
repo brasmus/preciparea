@@ -741,7 +741,7 @@ Fig2 <- function() {
 }
 
 ## Show the time evolution of the precipitation area
-Fig3 <- function(col=c('black',rgb(0.2,0.2,0.2,0.4),rgb(0.2,0.2,0.6,0.4),rgb(0.1,0.1,0.5,0.5))) {
+Fig3 <- function(col=c('black',rgb(0,0,0,0.5),rgb(0.2,0.2,0.6,0.3),rgb(0.1,0.1,0.5,0.3))) {
   data("Parea")
   data("Parea.month")
   data("Parea.eraint.month")
@@ -752,17 +752,19 @@ Fig3 <- function(col=c('black',rgb(0.2,0.2,0.2,0.4),rgb(0.2,0.2,0.6,0.4),rgb(0.1
              aggregate(100*Parea.eraint.month/attr(Parea.eraint.month,'total area'),year,FUN='mean'),
              aggregate(50*(tpa.eraint[,2]+tpa.eraint[,3])/tpa.eraint[,5],year,FUN='mean'),all=TRUE)
   plot(x,xlab='',ylab='%',main='Rainfall area',
-       plot.type='single',col=col,lwd=c(3,2,2,3))
+       plot.type='single',col=col,lwd=c(3,2,2,5))
   n <- dim(x)[2]
   stats <- rep('',n)
   for (i in 1:n) {
-    lines(trend(x[,i]),lty=2,col=col[i])
+    xt <- trend(x[,i])
+    xt[!is.finite(x[,i])] <- NA
+    lines(xt,lty=3,col=col[i])
     stats[i] <- paste(round(trend.coef(x[,i]),1),'%/decade (p-val=',
                       round(trend.pval(coredata(x[,i])),3),')',sep='') 
   }
   lines(x[,1],lwd=3)
   legend(1980,22.6,paste(c('TRMM day','TRMM month','ERAINT month','ERAINT day'),stats),
-         col=col,lwd=c(3,2,2,3),bty='n',cex=0.8)
+         col=col,lwd=c(3,2,2,5),bty='n',cex=0.8)
   grid()
 }
 
